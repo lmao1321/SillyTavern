@@ -1,3 +1,5 @@
+import { getContext } from "./extensions.js";
+
 export function onlyUnique(value, index, array) {
     return array.indexOf(value) === index;
 }
@@ -93,6 +95,17 @@ export function debounce(func, timeout = 300) {
     };
 }
 
+export function throttle(func, limit = 300) {
+    let lastCall;
+    return (...args) => {
+        const now = Date.now();
+        if (!lastCall || (now - lastCall) >= limit) {
+            lastCall = now;
+            func.apply(this, args);
+        }
+    };
+}
+
 export function isElementInViewport(el) {
     if (typeof jQuery === "function" && el instanceof jQuery) {
         el = el[0];
@@ -162,7 +175,7 @@ export function saveCaretPosition(element) {
         end: range.endOffset
     };
 
-    console.log('Caret saved', position);
+    console.debug('Caret saved', position);
 
     return position;
 }
@@ -174,7 +187,7 @@ export function restoreCaretPosition(element, position) {
         return;
     }
 
-    console.log('Caret restored', position);
+    console.debug('Caret restored', position);
 
     // Create a new range object
     const range = new Range();
@@ -219,7 +232,7 @@ export function sortByCssOrder(a, b) {
 export function end_trim_to_sentence(input, include_newline = false) {
     // inspired from https://github.com/kaihordewebui/kaihordewebui.github.io/blob/06b95e6b7720eb85177fbaf1a7f52955d7cdbc02/index.html#L4853-L4867
 
-    const punctuation = new Set(['.', '!', '?', '*', '"', ')', '}', '`', ']', '$']); // extend this as you see fit
+    const punctuation = new Set(['.', '!', '?', '*', '"', ')', '}', '`', ']', '$', '。', '！', '？', '”', '）', '】', '】', '’', '」', '】']); // extend this as you see fit
     let last = -1;
 
     for (let i = input.length - 1; i >= 0; i--) {
@@ -256,7 +269,7 @@ export function countOccurrences(string, character) {
 }
 
 export function isOdd(number) {
-  return number % 2 !== 0;
+    return number % 2 !== 0;
 }
 
 export function timestampToMoment(timestamp) {
@@ -313,4 +326,112 @@ export function splitRecursive(input, length, delimitiers = ['\n\n', '\n', ' ', 
         result.push(currentChunk);
     }
     return result;
+}
+
+export class IndexedDBStore {
+    constructor(dbName, storeName) {
+        this.dbName = dbName;
+        this.storeName = storeName;
+        this.db = null;
+    }
+
+    async open() {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open(this.dbName);
+
+            request.onupgradeneeded = (event) => {
+                const db = event.target.result;
+                db.createObjectStore(this.storeName, { keyPath: null, autoIncrement: false });
+            };
+
+            request.onsuccess = (event) => {
+                console.debug(`IndexedDBStore.open(${this.dbName})`);
+                this.db = event.target.result;
+                resolve(this.db);
+            };
+
+            request.onerror = (event) => {
+                console.error(`IndexedDBStore.open(${this.dbName})`);
+                reject(event.target.error);
+            };
+        });
+    }
+
+    async get(key) {
+        if (!this.db) await this.open();
+
+        return new Promise((resolve, reject) => {
+            const transaction = this.db.transaction(this.storeName, "readonly");
+            const objectStore = transaction.objectStore(this.storeName);
+            const request = objectStore.get(key);
+
+            request.onsuccess = (event) => {
+                console.debug(`IndexedDBStore.get(${key})`);
+                resolve(event.target.result);
+            };
+
+            request.onerror = (event) => {
+                console.error(`IndexedDBStore.get(${key})`);
+                reject(event.target.error);
+            };
+        });
+    }
+
+    async put(key, object) {
+        if (!this.db) await this.open();
+
+        return new Promise((resolve, reject) => {
+            const transaction = this.db.transaction(this.storeName, "readwrite");
+            const objectStore = transaction.objectStore(this.storeName);
+            const request = objectStore.put(object, key);
+
+            request.onsuccess = (event) => {
+                console.debug(`IndexedDBStore.put(${key})`);
+                resolve(event.target.result);
+            };
+
+            request.onerror = (event) => {
+                console.error(`IndexedDBStore.put(${key})`);
+                reject(event.target.error);
+            };
+        });
+    }
+
+    async delete(key) {
+        if (!this.db) await this.open();
+
+        return new Promise((resolve, reject) => {
+            const transaction = this.db.transaction(this.storeName, "readwrite");
+            const objectStore = transaction.objectStore(this.storeName);
+            const request = objectStore.delete(key);
+
+            request.onsuccess = (event) => {
+                console.debug(`IndexedDBStore.delete(${key})`);
+                resolve(event.target.result);
+            };
+
+            request.onerror = (event) => {
+                console.error(`IndexedDBStore.delete(${key})`);
+                reject(event.target.error);
+            };
+        });
+    }
+}
+
+export function isDataURL(str) {
+    const regex = /^data:([a-z]+\/[a-z0-9-+.]+(;[a-z-]+=[a-z0-9-]+)*;?)?(base64)?,([a-z0-9!$&',()*+;=\-_%.~:@\/?#]+)?$/i;
+    return regex.test(str);
+}
+
+export function getCharaFilename() {
+    const context = getContext();
+    const fileName = context.characters[context.characterId].avatar;
+
+    if (fileName) {
+        return fileName.replace(/\.[^/.]+$/, "")
+    }
+}
+
+export function escapeRegex(string) {
+    return string.replace(/[/\-\\^$*+?.()|[\]{}]/g, '\\$&');
 }

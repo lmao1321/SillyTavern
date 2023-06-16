@@ -144,6 +144,7 @@ async function createNewBookmark() {
         }
     }
 
+    await delay(250);
     let name = await getBookmarkName();
 
     if (!name) {
@@ -200,7 +201,7 @@ async function convertSoloToGroupChat() {
     const members = [character.avatar];
     const activationStrategy = group_activation_strategy.NATURAL;
     const allowSelfResponses = false;
-    const favChecked = character.fav == 'true';
+    const favChecked = character.fav || character.fav == 'true';
     const metadata = Object.assign({}, chat_metadata);
     delete metadata.main_chat;
 
@@ -257,7 +258,7 @@ async function convertSoloToGroupChat() {
         }
 
         // Skip messages we don't care about
-        if (message.is_user || message.is_system) {
+        if (message.is_user || message.is_system || message.extra?.type === system_message_types.NARRATOR || message.force_avatar !== undefined) {
             continue;
         }
 
